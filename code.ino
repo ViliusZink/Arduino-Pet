@@ -160,6 +160,54 @@ class Pet{
     B01000010,
     B00000000
   };
+  byte tiredBM[8] = {
+    B00000111,
+    B00000010,
+    B00000111,
+    B00000000,
+    B01100110,
+    B00000000,
+    B00111100,
+    B00000000
+  };
+  byte hungryBM[8] = {
+    B00000000,
+    B01010010,
+    B01010110,
+    B01110110,
+    B00100110,
+    B00100010,
+    B00100010,
+    B00000000
+  };
+  byte eatingBM[2][8] = {
+    {B00110000,
+     B01111000,
+     B10111000,
+     B10011100,
+     B01100100,
+     B00011111,
+     B00000111,
+     B00000110},
+    {B00000000,
+     B00110000,
+     B01110000,
+     B01111000,
+     B00011100,
+     B00001111,
+     B00000111,
+     B00000110}
+  };
+  byte pettingBM[8] = {
+    B00000000,
+    B01100110,
+    B11111111,
+    B11111111,
+    B01111110,
+    B00111100,
+    B00011000,
+    B00000000
+  };
 
   public:
   Pet(MatrixController &mc) : mc(mc){}
@@ -185,15 +233,31 @@ class Pet{
       case 3:
         mc.drawBitmap(hotBM[animationCounter]);
         isCold = false;
+        break;
+      case 4:
+        mc.drawBitmap(tiredBM);
+        break;
+      case 5:
+        mc.drawBitmap(hungryBM);
+        break;
+    }
+  }
+
+  void updateState(){
+    if(energy < 100){
+      stateCounter = 4;
+    }
+    if(hunger < 100){
+      stateCounter = 5;
+    }
+    else if(energy >= 100){
+      stateCounter = 0;
     }
   }
 
   void checkLight(int lightValue){
     if(lightValue < 512){
       stateCounter = 1;
-    }
-    else{
-      stateCounter = 0;
     }
   }
 
@@ -210,7 +274,6 @@ class Pet{
     else{
       isCold = false;
     }
-    drawCurrentState();
     checkHealth();
   }
 
@@ -258,10 +321,49 @@ class Pet{
     Serial.print(" | Hunger: ");
     Serial.println(hunger);
   }
+
+  void feed(){
+    if(hunger <= 400){
+      hunger += 100;
+    }
+    else{
+      hunger = 500;
+    }
+    mc.drawBitmap(eatingBM[0]);
+    delay(100000);
+    mc.drawBitmap(eatingBM[1]);
+    delay(100000);
+    drawCurrentState();
+  }
+
+  void pet(){
+    if(health <= 496){
+      hunger += 4;
+    }
+    mc.drawBitmap(pettingBM);
+    delay(100000);
+    drawCurrentState();
+  }
 };
 
 MatrixController mc;
 Pet pet(mc);
+unsigned long lastKeyPress = 0;
+unsigned long keyDelay = 100;
+
+void foodButtonPressed(){
+  if(millis() - lastKeyPress >= keyDelay){
+    lastKeyPress = millis();
+    pet.feed();
+  }
+}
+
+void petButtonPressed(){
+  if(millis() - lastKeyPress >= keyDelay){
+    lastKeyPress = millis();
+    pet.pet();
+  }
+}
 
 void setup(){
   Serial.begin(9600);
@@ -270,6 +372,7 @@ void setup(){
   pinMode(A1, INPUT);
 
   noInterrupts();
+
   TCCR1A = 0;
   TCCR1B = 0;
   TCNT1 = 0;
@@ -277,6 +380,12 @@ void setup(){
   TCCR1B |= (1 << WGM12);
   TIMSK1 |= (1 << OCIE1A);
   TCCR1B |= (1 << CS12) | (1 << CS10);
+
+  pinMode(2, INPUT_PULLUP);
+  pinMode(3, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(2), foodButtonPressed, FALLING);
+  attachInterrupt(digitalPinToInterrupt(3), petButtonPressed, FALLING);
+
   interrupts();
 }
 
@@ -287,8 +396,10 @@ void loop(){
     int heaterValue = analogRead(A0);
     int lightValue = analogRead(A1);
 
+    pet.updateState();
     pet.checkLight(lightValue);
     pet.checkTemp(heaterValue);
+    pet.drawCurrentState();
   }
   if(updatePetStats){
     updatePetStats = false;
