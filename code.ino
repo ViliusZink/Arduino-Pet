@@ -226,6 +226,12 @@ class Pet{
   public:
   Pet(MatrixController &mc) : mc(mc){}
 
+  void reset(){
+    health = 500;
+    energy = 500;
+    hunger = 500;
+  }
+
   void drawCurrentState(){
     animationCounter = (animationCounter + 1) % 2;
     switch(stateCounter){
@@ -279,29 +285,23 @@ class Pet{
     if(heaterValue <= 340){
       stateCounter = 2;
       health -= 34 - heaterValue / 10;
+      saveStats();
     }
     else if(heaterValue >= 683){
       stateCounter = 3;
       isCold = false;
       health -= 34 - (1023 - heaterValue) / 10;
+      saveStats();
     }
     else{
       isCold = false;
     }
-    saveStats();
-    checkHealth();
   }
 
   void checkHealth(){
     if(health <= 0){
       dead = true;
       mc.drawBitmap(deadBM);
-      while(dead){
-      }
-      stateCounter = 0;
-      health = 500;
-      energy = 500;
-      hunger = 500;
     }
   }
 
@@ -332,7 +332,6 @@ class Pet{
       }
     }
     saveStats();
-    checkHealth();
     Serial.print("Health: ");
     Serial.print(health);
     Serial.print(" | Energy: ");
@@ -350,9 +349,9 @@ class Pet{
     }
     saveStats();
     mc.drawBitmap(eatingBM[0]);
-    delay(100000);
+    delay(400);
     mc.drawBitmap(eatingBM[1]);
-    delay(100000);
+    delay(400);
     drawCurrentState();
   }
 
@@ -362,7 +361,7 @@ class Pet{
       saveStats();
     }
     mc.drawBitmap(pettingBM);
-    delay(100000);
+    delay(400);
     drawCurrentState();
   }
 
@@ -400,25 +399,15 @@ MatrixController mc;
 Pet pet(mc);
 unsigned long lastKeyPress = 0;
 unsigned long keyDelay = 100;
+volatile bool foodButtonWasPressed = false;
+volatile bool petButtonWasPressed = false;
 
 void foodButtonPressed(){
-  if(dead){
-    dead = false;
-  }
-  else if(millis() - lastKeyPress >= keyDelay){
-    lastKeyPress = millis();
-    pet.feed();
-  }
+  foodButtonWasPressed = true;
 }
 
 void petButtonPressed(){
-  if(dead){
-    dead = false;
-  }
-  else if(millis() - lastKeyPress >= keyDelay){
-    lastKeyPress = millis();
-    pet.pet();
-  }
+  petButtonWasPressed = true;
 }
 
 void setup(){
@@ -448,7 +437,11 @@ void setup(){
 }
 
 void loop(){
-  if(doSensorRead){
+  if(updatePetStats && !dead){
+    updatePetStats = false;
+    pet.updateStats();
+  }
+  if(doSensorRead && !dead){
     doSensorRead = false;
 
     int heaterValue = analogRead(A0);
@@ -458,9 +451,28 @@ void loop(){
     pet.checkLight(lightValue);
     pet.checkTemp(heaterValue);
     pet.drawCurrentState();
+    pet.checkHealth();
   }
-  if(updatePetStats){
-    updatePetStats = false;
-    pet.updateStats();
+  if(foodButtonWasPressed){
+    if(dead){
+      dead = false;
+      pet.reset();
+    }
+    else if(millis() - lastKeyPress >= keyDelay){
+      lastKeyPress = millis();
+      pet.feed();
+    }
+    foodButtonWasPressed = false;
+  }
+  if(petButtonWasPressed){
+    if(dead){
+      dead = false;
+      pet.reset();
+    }
+    else if(millis() - lastKeyPress >= keyDelay){
+      lastKeyPress = millis();
+      pet.pet();
+    }
+    petButtonWasPressed = false;
   }
 }
