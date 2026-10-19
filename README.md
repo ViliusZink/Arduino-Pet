@@ -1,1 +1,1 @@
-# Arduino-Tamagotchi
+# Arduino-Pet
