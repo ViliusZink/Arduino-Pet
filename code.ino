@@ -1,7 +1,21 @@
 #include <LEDMatrixDriver.hpp>
+#include <EEPROM.h>
+
+struct PetSaveData {
+  uint16_t magic;
+  byte version;
+  int health;
+  int energy;
+  int hunger;
+};
+
+const uint16_t EEPROM_MAGIC = 666;
+const byte EEPROM_VERSION = 1;
+const int EEPROM_ADDRESS = 0;
 
 volatile bool doSensorRead = false;
 volatile bool updatePetStats = false;
+volatile bool dead = false;
 volatile int secondCounter = 0;
 
 ISR(TIMER1_COMPA_vect){
@@ -136,17 +150,17 @@ class Pet{
     {B00000000,
      B00010000,
      B00011000,
-     B00101000,
-     B00100100,
-     B00100100,
+     B00111000,
+     B00111100,
+     B00111100,
      B00011000,
      B00000000},
     {B00000000,
      B00001000,
      B00011000,
-     B00010100,
-     B00100100,
-     B00100100,
+     B00011100,
+     B00111100,
+     B00111100,
      B00011000,
      B00000000}
   };
@@ -274,16 +288,20 @@ class Pet{
     else{
       isCold = false;
     }
+    saveStats();
     checkHealth();
   }
 
   void checkHealth(){
     if(health <= 0){
-      cli();
+      dead = true;
       mc.drawBitmap(deadBM);
-      while(1){
+      while(dead){
       }
-      sei();
+      stateCounter = 0;
+      health = 500;
+      energy = 500;
+      hunger = 500;
     }
   }
 
@@ -313,6 +331,7 @@ class Pet{
         health += 4;
       }
     }
+    saveStats();
     checkHealth();
     Serial.print("Health: ");
     Serial.print(health);
@@ -329,6 +348,7 @@ class Pet{
     else{
       hunger = 500;
     }
+    saveStats();
     mc.drawBitmap(eatingBM[0]);
     delay(100000);
     mc.drawBitmap(eatingBM[1]);
@@ -338,11 +358,41 @@ class Pet{
 
   void pet(){
     if(health <= 496){
-      hunger += 4;
+      health += 4;
+      saveStats();
     }
     mc.drawBitmap(pettingBM);
     delay(100000);
     drawCurrentState();
+  }
+
+  void loadStats(){
+    PetSaveData data;
+    EEPROM.get(EEPROM_ADDRESS, data);
+
+    if (data.magic != EEPROM_MAGIC || data.version != EEPROM_VERSION || data.health <= 0 || data.health > 500 || data.energy < 0 || data.energy > 500 || data.hunger < 0 || data.hunger > 500) {
+      health = 500;
+      energy = 500;
+      hunger = 500;
+      saveStats();
+      return;
+    }
+
+    health = data.health;
+    energy = data.energy;
+    hunger = data.hunger;
+  }
+
+  void saveStats(){
+    PetSaveData data;
+
+    data.magic = EEPROM_MAGIC;
+    data.version = EEPROM_VERSION;
+    data.health = health;
+    data.energy = energy;
+    data.hunger = hunger;
+
+    EEPROM.put(EEPROM_ADDRESS, data);
   }
 };
 
@@ -352,14 +402,20 @@ unsigned long lastKeyPress = 0;
 unsigned long keyDelay = 100;
 
 void foodButtonPressed(){
-  if(millis() - lastKeyPress >= keyDelay){
+  if(dead){
+    dead = false;
+  }
+  else if(millis() - lastKeyPress >= keyDelay){
     lastKeyPress = millis();
     pet.feed();
   }
 }
 
 void petButtonPressed(){
-  if(millis() - lastKeyPress >= keyDelay){
+  if(dead){
+    dead = false;
+  }
+  else if(millis() - lastKeyPress >= keyDelay){
     lastKeyPress = millis();
     pet.pet();
   }
@@ -367,6 +423,8 @@ void petButtonPressed(){
 
 void setup(){
   Serial.begin(9600);
+
+  pet.loadStats();
 
   pinMode(A0, INPUT);
   pinMode(A1, INPUT);
