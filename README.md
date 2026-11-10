@@ -60,18 +60,20 @@ Button 1 – D2 and GND
 Button 2 – D3 and GND
 
 # Timer config
-Timer 1 is configured in CTC mode, used to generate an interrupt every second. Prescaler - 1024, OCR1A - 249, interrupt - TIMER2_COMPA_vect.
-Interrupt sets flag for sensor input processing, display and servo updates almost every second. It also updates a 3 state counter for different actions.
+Timer 1 is configured in CTC mode, used to generate an interrupt every second. Prescaler - 1024, OCR1A - 249, interrupt - TIMER1_COMPA_vect.
+Interrupt sets flag for sensor input processing and some pet updates. Every 30 seconds another flag is set to update pet stats.
 
 # ISR roles
-The Timer2 ISR counts to a second to set a sensor input processing, display and servo update flag and updates the phase counter.
+The Timer1 ISR sets sensor reading and pet update flags and counts to 30 seconds.
 Sets the sensor-reading flag.
 
+External interrupts are used for D2 and D3. They register button presses by setting their flags for the main loop to process.
+
 # EEPROM layout
-magic (uint16_t) – to identify valid data belonging to this application. Value 123 is used.
+magic (uint16_t) – to identify valid data belonging to this application. Value 666 is used.
 
 version (byte) – to identify the saved data format version. Value 1 is used.
 
-temperature (int) – to save the last measured temperature.
+health (int) – health stat.
 
-These EEPROM fields are processed by methods in the Pet class, stats are verified to be in usable intervals.
+energy (int) – energy stat.
