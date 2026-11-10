@@ -77,3 +77,7 @@ version (byte) – to identify the saved data format version. Value 1 is used.
 health (int) – health stat.
 
 energy (int) – energy stat.
+
+hunger (int) – hunger stat.
+
+These EEPROM fields are processed by methods in the Pet class, stats are verified to be in usable intervals.
